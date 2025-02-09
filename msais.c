@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2008 Yuta Mori    All Rights Reserved.
- *               2011 Attractive Chaos <attractor@live.co.uk>
+ * Copyright (c) 2008  Yuta Mori    All Rights Reserved.
+ *               2011- Attractive Chaos <attractor@live.co.uk>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -62,7 +62,7 @@ static void getCounts(const uint8_t *T, saint_t *C, saint_t n, saint_t k, int cs
 }
 
 /**
- * Find the end of each bucket
+ * Find the start or end of each bucket
  *
  * @param C   occurrences computed by getCounts(); input
  * @param B   start/end of each bucket; output
@@ -73,42 +73,43 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 {
 	saint_t i, sum = 0;
 	if (end) for (i = 0; i < k; ++i) sum += C[i], B[i] = sum;
-	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i];
+	else for (i = 0; i < k; ++i) B[i] = sum, sum += C[i];
 }
 
-/** Induced sort */
+/** Induced sort; LMS must be put towards the end of each bucket before calling this function */
 static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, saint_t cs)
 {
 	saint_t *b, i, j;
 	saint_t  c0, c1;
-	/* left-to-right induced sort (for L-type) */
+	/* induced sort L-type from LMS (left-to-right) */
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 0);	/* find starts of buckets */
-	for (i = 0, b = 0, c1 = -1; i < n; ++i) {
-		j = SA[i], SA[i] = ~j;
-		if (0 < j) { /* >0 if j-1 is L-type; <0 if S-type; ==0 undefined */
-			--j;
-			if ((c0 = chr(j)) != c1) {
-				B[c1 > 0? c1 : 0] = b - SA;
-				c1 = c0;
-				b = SA + B[c1 > 0? c1 : 0];
-			}
-			*b++ = (0 < j && chr(j - 1) < c1) ? ~j : j;
-		}
+	if (cs != sizeof(saint_t)) { /* in the first round, 0 is a sentinel and there can be multiple sentinels in T */
+		b = SA, c1 = 0;
+	} else { /* in the following rounds, 0 is a normal symbol, so the initial conditions are different */
+		j = n - 1;
+		b = SA + B[c1 = chr0(j)];
+		*b++ = j > 0 && chr0(j - 1) < c1? ~j : j;
 	}
-	/* right-to-left induced sort (for S-type) */
+	for (i = 0; i < n; ++i) {
+		j = SA[i], SA[i] = ~j;
+		if (j > 0) { /* >0 if j-1 is L-type; <0 if S-type; ==0 undefined */
+			--j;
+			if ((c0 = chr0(j)) != c1) /* then change a bucket */
+				B[c1] = b - SA, b = SA + B[c1 = c0];
+			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j;
+		}
+	} /* here, S-type is negative and L-type is positive */
+	/* induced sort S-type from L-type (right-to-left) */
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	/* find ends of buckets */
-	for (i = n - 1, b = 0, c1 = -1; 0 <= i; --i) {
-		if (0 < (j = SA[i])) { /* the prefix is S-type */
+	for (i = n - 1, b = SA + B[c1 = 0]; i >= 0; --i) {
+		if ((j = SA[i]) > 0) { /* the prefix is S-type */
 			--j;
-			if ((c0 = chr(j)) != c1) {
-				B[c1 > 0? c1 : 0] = b - SA;
-				c1 = c0;
-				b = SA + B[c1 > 0? c1 : 0];
-			}
-			if (c0 > 0) *--b = (j == 0 || chr(j - 1) > c1) ? ~j : j;
-		} else SA[i] = ~j; /* if L-type, change the sign */
+			if ((c0 = chr0(j)) != c1)
+				B[c1] = b - SA, b = SA + B[c1 = c0];
+			if (c0 > 0) *--b = j == 0 || chr0(j - 1) > c1? ~j : j;
+		} else SA[i] = ~j; /* flip to positive */
 	}
 }
 
@@ -141,9 +142,9 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
 	getBuckets(C, B, k, 1);	/* find ends of buckets */
 	for (i = 0; i < n; ++i) SA[i] = 0;
 	/* mark L and S (the t array in Nong et al.), and keep the positions of LMS in the buckets */
-	for (i = n - 2, c = 1, c1 = chr(n - 1); 0 <= i; --i, c1 = c0) {
-		if ((c0 = chr(i)) < c1 + c) c = 1; /* c1 = chr(i+1); c==1 if in an S run */
-		else if (c) SA[--B[c1 > 0? c1 : 0]] = i + 1, c = 0;
+	for (i = n - 2, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
+		if ((c0 = chr0(i)) < c1 + c) c = 1; /* c1 = chr(i+1); c==1 if in an S run */
+		else if (c) SA[--B[c1]] = i + 1, c = 0;
 	}
 	induceSA(T, SA, C, B, n, k, cs);
 	if (fs < k) free(C);
@@ -152,22 +153,22 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
 	for (i = 0, m = 0; i < n; ++i) {
 		saint_t p = SA[i];
 		if (p == n - 1) SA[m++] = p;
-		else if (0 < p && chr(p - 1) > (c0 = chr(p))) {
-			for (j = p + 1; j < n && c0 == (c1 = chr(j)); ++j);
+		else if (p > 0 && chr(p - 1) > (c0 = chr(p))) {
+			for (j = p + 1; j < n && c0 == (c1 = chr(j)); ++j) {}
 			if (j < n && c0 < c1) SA[m++] = p;
 		}
 	}
 	for (i = m; i < n; ++i) SA[i] = 0;	/* init the name array buffer */
 	/* store the length of all substrings */
-	for (i = n - 2, j = n, c = 1, c1 = chr(n - 1); 0 <= i; --i, c1 = c0) {
-		if ((c0 = chr(i)) < c1 + c) c = 1; /* c1 = chr(i+1) */
+	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1); i >= 0; --i, c1 = c0) {
+		if ((c0 = chr0(i)) < c1 + c) c = 1; /* c1 = chr(i+1) */
 		else if (c) SA[m + ((i + 1) >> 1)] = j - i - 1, j = i + 1, c = 0;
 	}
 	/* find the lexicographic names of all substrings */
 	for (i = 0, name = 0, q = n, qlen = 0; i < m; ++i) {
 		saint_t p = SA[i], plen = SA[m + (p >> 1)], diff = 1;
 		if (plen == qlen) {
-			for (j = 0; j < plen && chr(p + j) == chr(q + j); j++);
+			for (j = 0; j < plen && chr(p + j) == chr(q + j); j++) {}
 			if (j == plen) diff = 0;
 		}
 		if (diff) ++name, q = p, qlen = plen;
@@ -179,7 +180,7 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
 		saint_t *RA = SA + n + fs - m - 1;
 		for (i = n - 1, j = m - 1; m <= i; --i)
 			if (SA[i] != 0) RA[j--] = SA[i];
-		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m always stands
+		RA[m] = 0; /* add a sentinel; in the resulting SA, SA[0]==m always stands */
 		if (SAIS_CORE((uint8_t *)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
 		for (i = n - 2, j = m - 1, c = 1, c1 = chr(n - 1); 0 <= i; --i, c1 = c0) {
 			if ((c0 = chr(i)) < c1 + c) c = 1;
@@ -231,7 +232,7 @@ int SAIS_BWT(uint8_t *T, saint_t n, int k)
 	if ((SA = (saint_t*)malloc(n * sizeof(saint_t))) == 0) return -1;
 	if ((ret = SAIS_MAIN(T, SA, n, k)) != 0) return ret;
 	for (i = 0; i < n; ++i)
-		if (SA[i]) SA[i] = T[SA[i] - 1]; // if SA[i]==0, SA[i]=0
+		if (SA[i]) SA[i] = T[SA[i] - 1]; /* if SA[i]==0, SA[i]=0 */
 	for (i = 0; i < n; ++i) T[i] = SA[i];
 	free(SA);
 	return 0;
