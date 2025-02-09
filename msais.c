@@ -49,12 +49,12 @@ typedef int32_t saint_t;
 #define SAIS_MAIN ksa_sa32
 #endif
 
-/* T is of type "const unsigned char*". If T[i] is a sentinel, chr(i) takes a negative value */
+/* T is of type "const uint8_t*". If T[i] is a sentinel, chr(i) takes a negative value */
 #define chr(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : (T[i]? (saint_t)T[i] : i - SAINT_MAX))
 #define chr0(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : T[i])
 
 /** Count the occurrences of each symbol */
-static void getCounts(const unsigned char *T, saint_t *C, saint_t n, saint_t k, int cs)
+static void getCounts(const uint8_t *T, saint_t *C, saint_t n, saint_t k, int cs)
 {
 	saint_t i;
 	for (i = 0; i < k; ++i) C[i] = 0;
@@ -77,7 +77,7 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 }
 
 /** Induced sort */
-static void induceSA(const unsigned char *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, saint_t cs)
+static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, saint_t cs)
 {
 	saint_t *b, i, j;
 	saint_t  c0, c1;
@@ -125,7 +125,7 @@ static void induceSA(const unsigned char *T, saint_t *SA, saint_t *C, saint_t *B
  *
  * @return    0 upon success
  */
-int SAIS_CORE(const unsigned char *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
+int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
 {
 	saint_t *C, *B;
 	saint_t  i, j, c, m, q, qlen, name;
@@ -180,7 +180,7 @@ int SAIS_CORE(const unsigned char *T, saint_t *SA, saint_t fs, saint_t n, saint_
 		for (i = n - 1, j = m - 1; m <= i; --i)
 			if (SA[i] != 0) RA[j--] = SA[i];
 		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m always stands
-		if (SAIS_CORE((unsigned char *)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
+		if (SAIS_CORE((uint8_t *)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
 		for (i = n - 2, j = m - 1, c = 1, c1 = chr(n - 1); 0 <= i; --i, c1 = c0) {
 			if ((c0 = chr(i)) < c1 + c) c = 1;
 			else if (c) RA[j--] = i + 1, c = 0; /* get p1 */
@@ -217,18 +217,18 @@ int SAIS_CORE(const unsigned char *T, saint_t *SA, saint_t fs, saint_t n, saint_
  * @param k          size of the alphabet including the sentinel; no more than 256
  * @return           0 upon success
  */
-int SAIS_MAIN(const unsigned char *T, saint_t *SA, saint_t n, int k)
+int SAIS_MAIN(const uint8_t *T, saint_t *SA, saint_t n, int k)
 {
 	if (T == NULL || SA == NULL || T[n - 1] != '\0' || n <= 0) return -1;
 	if (k < 0 || k > 256) k = 256;
 	return SAIS_CORE(T, SA, 0, n, (saint_t)k, 1);
 }
 
-int SAIS_BWT(unsigned char *T, saint_t n, int k)
+int SAIS_BWT(uint8_t *T, saint_t n, int k)
 {
 	saint_t *SA, i;
 	int ret;
-	if ((SA = malloc(n * sizeof(saint_t))) == 0) return -1;
+	if ((SA = (saint_t*)malloc(n * sizeof(saint_t))) == 0) return -1;
 	if ((ret = SAIS_MAIN(T, SA, n, k)) != 0) return ret;
 	for (i = 0; i < n; ++i)
 		if (SA[i]) SA[i] = T[SA[i] - 1]; // if SA[i]==0, SA[i]=0
