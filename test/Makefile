@@ -29,4 +29,4 @@ msais-test:main.o $(OBJS)
 		$(CC) -o $@ $< $(OBJS) $(LIBS)
 
 clean:
-		rm -fr *.o a.out $(PROG) *~ *.a *.dSYM
+		rm -fr *.o ../*.o a.out $(PROG) *~ *.a *.dSYM
