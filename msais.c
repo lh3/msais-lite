@@ -81,7 +81,7 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 {
 	saint_t *b, i, j;
 	saint_t  c0, c1;
-	/* induced sort L-type from LMS (left-to-right) */
+	/* induce all L-suffixes from LMS (left-to-right) */
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 0);	/* find starts of buckets */
 	if (cs != sizeof(saint_t)) { /* in the first round, 0 is a sentinel and there can be multiple sentinels in T */
@@ -93,18 +93,18 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 	}
 	for (i = 0; i < n; ++i) {
 		j = SA[i], SA[i] = ~j;
-		if (j > 0) { /* >0 if j-1 is L-type; <0 if S-type; ==0 undefined */
+		if (j > 0) { /* L or LMS */
 			--j;
 			if ((c0 = chr0(j)) != c1) /* then change a bucket */
 				B[c1] = b - SA, b = SA + B[c1 = c0];
-			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j;
+			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; /* NB: non-LMS S-suffixes are negative */
 		}
 	} /* here, S-type is negative and L-type is positive */
-	/* induced sort S-type from L-type (right-to-left) */
+	/* induce all S-suffixes from L (right-to-left) */
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	/* find ends of buckets */
 	for (i = n - 1, b = SA + B[c1 = 0]; i >= 0; --i) {
-		if ((j = SA[i]) > 0) { /* the prefix is S-type */
+		if ((j = SA[i]) > 0) { /* SA[i] is up to date */
 			--j;
 			if ((c0 = chr0(j)) != c1)
 				B[c1] = b - SA, b = SA + B[c1 = c0];
