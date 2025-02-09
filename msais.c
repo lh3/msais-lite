@@ -51,16 +51,14 @@ typedef int32_t saint_t;
 
 /* T is of type "const unsigned char*". If T[i] is a sentinel, chr(i) takes a negative value */
 #define chr(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : (T[i]? (saint_t)T[i] : i - SAINT_MAX))
+#define chr0(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : T[i])
 
 /** Count the occurrences of each symbol */
 static void getCounts(const unsigned char *T, saint_t *C, saint_t n, saint_t k, int cs)
 {
 	saint_t i;
 	for (i = 0; i < k; ++i) C[i] = 0;
-	for (i = 0; i < n; ++i) {
-		saint_t c = chr(i);
-		++C[c > 0? c : 0];
-	}
+	for (i = 0; i < n; ++i) ++C[chr0(i)];
 }
 
 /**
@@ -202,8 +200,7 @@ int SAIS_CORE(const unsigned char *T, saint_t *SA, saint_t fs, saint_t n, saint_
 	for (i = m; i < n; ++i) SA[i] = 0; /* init SA[m..n-1] */
 	for (i = m - 1; 0 <= i; --i) {
 		j = SA[i], SA[i] = 0;
-		c = chr(j);
-		SA[--B[c > 0? c : 0]] = j;
+		SA[--B[chr0(j)]] = j;
 	}
 	induceSA(T, SA, C, B, n, k, cs);
 	if (fs < k) free(C);
