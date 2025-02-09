@@ -33,21 +33,20 @@
  * supporting multi-sentinel strings, but is probably the easiest to use. */
 
 #include <stdlib.h>
+#include "msais.h"
 
-#ifdef _KSA64
-#include <stdint.h>
+#if defined(_KSA64) || defined(MSAIS64)
 typedef int64_t saint_t;
 #define SAINT_MAX INT64_MAX
 #define SAIS_CORE ksa_core64
 #define SAIS_BWT  ksa_bwt64
 #define SAIS_MAIN ksa_sa64
 #else
-#include <limits.h>
-typedef int saint_t;
-#define SAINT_MAX INT_MAX
-#define SAIS_CORE ksa_core
-#define SAIS_BWT  ksa_bwt
-#define SAIS_MAIN ksa_sa
+typedef int32_t saint_t;
+#define SAINT_MAX INT32_MAX
+#define SAIS_CORE ksa_core32
+#define SAIS_BWT  ksa_bwt32
+#define SAIS_MAIN ksa_sa32
 #endif
 
 /* T is of type "const unsigned char*". If T[i] is a sentinel, chr(i) takes a negative value */
