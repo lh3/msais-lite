@@ -108,7 +108,8 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 			--j;
 			if ((c0 = chr0(j)) != c1)
 				B[c1] = b - SA, b = SA + B[c1 = c0];
-			if (c0 > 0) *--b = j == 0 || chr0(j - 1) > c1? ~j : j;
+			if (cs == sizeof(saint_t) || c0 > 0)
+				*--b = j == 0 || chr0(j - 1) > c1? ~j : j;
 		} else SA[i] = ~j; /* flip to positive */
 	}
 }
