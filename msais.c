@@ -73,7 +73,7 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 {
 	saint_t i, sum = 0;
 	if (end) for (i = 0; i < k; ++i) sum += C[i], B[i] = sum;
-	else for (i = 0; i < k; ++i) B[i] = sum, sum += C[i];
+	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i];
 }
 
 /** Induced sort; LMS must be put towards the end of each bucket before calling this function */
