@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008  Yuta Mori    All Rights Reserved.
+ * Copyright (c) 2008  Yuta Mori
  *               2011- Attractive Chaos <attractor@live.co.uk>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -38,18 +38,14 @@
 #if defined(_KSA64) || defined(MSAIS64)
 typedef int64_t saint_t;
 #define SAINT_MAX INT64_MAX
-#define SAIS_CORE ksa_core64
-#define SAIS_BWT  ksa_bwt64
 #define SAIS_MAIN ksa_sa64
 #else
 typedef int32_t saint_t;
 #define SAINT_MAX INT32_MAX
-#define SAIS_CORE ksa_core32
-#define SAIS_BWT  ksa_bwt32
 #define SAIS_MAIN ksa_sa32
 #endif
 
-/* T is of type "const uint8_t*". If T[i] is a sentinel, chr(i) takes a negative value */
+// T is of type "const uint8_t*". If T[i] is a sentinel, chr(i) takes a negative value
 #define chr(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : (T[i]? (saint_t)T[i] : i - SAINT_MAX))
 #define chr0(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : T[i])
 
@@ -64,43 +60,54 @@ static void getCounts(const uint8_t *T, saint_t *C, saint_t n, saint_t k, int cs
 /**
  * Find the start or end of each bucket
  *
- * @param C   occurrences computed by getCounts(); input
- * @param B   start/end of each bucket; output
- * @param k   size of alphabet
- * @param end compute the end of bucket if true; otherwise compute the end
+ * @param C    occurrences computed by getCounts()
+ * @param B    start/end of each bucket (out)
+ * @param k    size of alphabet
+ * @param end  compute the end of bucket if true; otherwise compute the end
  */
 static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t end)
 {
 	saint_t i, sum = 0;
 	if (end) for (i = 0; i < k; ++i) sum += C[i], B[i] = sum;
-	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i];
+	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i]; // NB: C[] and B[] may point to the same address
 }
 
-/** Induced sort; LMS must be put towards the end of each bucket before calling this function */
+/**
+ * Induced sort
+ *
+ * @param T         string
+ * @param SA        suffix array with LMS stored at the ends of buckets
+ * @param C         array for counting (no need to compute)
+ * @param B         array for bucket offsets (no need to compute)
+ * @param n         length of T
+ * @param k         size of alphabet
+ * @param cs        bytes per symbol; typically 1 for the first iteration
+ * @param LMS_only  if false, populate all SA values; otherwise, only LMS positions are positive in SA
+ */
 static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs, int LMS_only)
 {
 	saint_t *b, i, j;
 	saint_t  c0, c1;
-	/* induce all L from LMS (left-to-right) */
+	// induce L from LMS (left-to-right)
 	if (C == B) getCounts(T, C, n, k, cs);
-	getBuckets(C, B, k, 0);	/* find starts of buckets */
-	if (cs != sizeof(saint_t)) { /* in the first round, 0 is a sentinel and there can be multiple sentinels in T */
+	getBuckets(C, B, k, 0);	// find starts of buckets
+	if (cs != sizeof(saint_t)) { // in the first round, 0 is a sentinel and there can be multiple sentinels in T
 		b = SA, c1 = 0;
-	} else { /* in the following rounds, 0 is a normal symbol, so the initial conditions are different */
+	} else { // in the following rounds, 0 is a normal symbol, so the initial condition is different from above
 		j = n - 1;
 		b = SA + B[c1 = chr0(j)];
 		*b++ = j > 0 && chr0(j - 1) < c1? ~j : j;
 	}
 	for (i = 0; i < n; ++i) {
 		j = SA[i], SA[i] = ~j;
-		if (j > 0) { /* L or LMS */
+		if (j > 0) { // L or LMS
 			--j;
-			if ((c0 = chr0(j)) != c1) /* then change a bucket */
+			if ((c0 = chr0(j)) != c1) // then change a bucket
 				B[c1] = b - SA, b = SA + B[c1 = c0];
-			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; /* true if j is LML, which is <0 now but will be flipped later */
+			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; // true if j is LML, which is <0 now but will be flipped later
 		}
-	} /* here, only LML are positive in SA[] */
-	/* induce S from L (right-to-left) */
+	} // here, only LML are positive in SA[]
+	// induce S from L (right-to-left)
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	/* find ends of buckets */
 	if (LMS_only) /* reset negative values except the 0 bucket */
@@ -114,7 +121,7 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 			if ((c0 = chr0(j)) != c1)
 				B[c1] = b - SA, b = SA + B[c1 = c0];
 			if (cs == sizeof(saint_t) || c0 > 0)
-				*--b = j == 0 || chr0(j - 1) > c1? ~j : j; /* true if j is LMS */
+				*--b = j == 0 || chr0(j - 1) > c1? ~j : j; // true if j is LMS
 		}
 	}
 }
@@ -128,42 +135,42 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
  * @param fs  working space available in SA (typically 0 when first called)
  * @param n   length of T, including the trailing NULL
  * @param k   size of the alphabet (typically 256 when first called)
- * @param cs  # bytes per element in T; 1 or sizeof(saint_t) (typically 1 when first called)
+ * @param cs  bytes per symbol; typically 1 for the first iteration
  *
  * @return    0 upon success
  */
-int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
+static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
 {
 	saint_t *C, *B;
 	saint_t  i, j, c, m, q, qlen, name;
 	saint_t  c0, c1;
 
-	/* STAGE I: reduce the problem by at least 1/2 sort all the S-substrings */
+	// STAGE I: reduce the problem by at least 1/2 sort all the S-substrings
 	if (k <= fs) C = SA + n, B = (k <= fs - k) ? C + k : C;
 	else {
 		if ((C = (saint_t*)malloc(k * (1 + (cs == 1)) * sizeof(saint_t))) == NULL) return -2;
 		B = cs == 1? C + k : C;
 	}
 	getCounts(T, C, n, k, cs);
-	getBuckets(C, B, k, 1);	/* find ends of buckets */
+	getBuckets(C, B, k, 1);	// find ends of buckets
 	for (i = 0; i < n; ++i) SA[i] = 0;
-	/* mark L and S (the t array in Nong et al.), and keep the positions of LMS in the buckets */
+	// find LMS and keep their positions in the buckets
 	for (i = n - 2, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
-		if ((c0 = chr0(i)) < c1 + c) c = 1; /* c1 = chr(i+1); c==1 if in an S run */
+		if ((c0 = chr0(i)) < c1 + c) c = 1; // c1 = chr(i+1); c==1 if in an S run
 		else if (c) SA[--B[c1]] = i + 1, c = 0;
 	}
 	induceSA(T, SA, C, B, n, k, cs, 1);
 	if (fs < k) free(C);
-	/* pack all the sorted LMS into the first m items of SA; 2*m <= n */
+	// pack all the sorted LMS into the first m items of SA; 2*m <= n
 	for (i = 0, m = 0; i < n; ++i)
 		if (SA[i] > 0) SA[m++] = SA[i];
-	for (i = m; i < n; ++i) SA[i] = 0;	/* init the name array buffer */
-	/* store the length of all substrings */
+	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
+	// store the length of all substrings
 	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1); i >= 0; --i, c1 = c0) {
-		if ((c0 = chr0(i)) < c1 + c) c = 1; /* c1 = chr(i+1) */
+		if ((c0 = chr0(i)) < c1 + c) c = 1; // c1 = chr(i+1)
 		else if (c) SA[m + ((i + 1) >> 1)] = j - i - 1, j = i + 1, c = 0;
 	}
-	/* find the lexicographic names of all substrings */
+	// find the lexicographic names of all substrings
 	for (i = 0, name = 0, q = n, qlen = 0; i < m; ++i) {
 		saint_t p = SA[i], plen = SA[m + (p >> 1)], diff = 1;
 		if (plen == qlen) {
@@ -174,30 +181,30 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
 		SA[m + (p >> 1)] = name;
 	}
 
-	/* STAGE II: solve the reduced problem; recurse if names are not yet unique */
+	// STAGE II: solve the reduced problem; recurse if names are not yet unique
 	if (name < m) {
 		saint_t *RA = SA + n + fs - m - 1;
 		for (i = n - 1, j = m - 1; m <= i; --i)
 			if (SA[i] != 0) RA[j--] = SA[i];
-		RA[m] = 0; /* add a sentinel; in the resulting SA, SA[0]==m always stands */
-		if (SAIS_CORE((uint8_t *)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
+		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m always stands
+		if (sais_core((uint8_t*)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
 		for (i = n - 2, j = m - 1, c = 1, c1 = chr(n - 1); 0 <= i; --i, c1 = c0) {
 			if ((c0 = chr(i)) < c1 + c) c = 1;
-			else if (c) RA[j--] = i + 1, c = 0; /* get p1 */
+			else if (c) RA[j--] = i + 1, c = 0;
 		}
-		for (i = 0; i < m; ++i) SA[i] = RA[SA[i+1]]; /* get index  */
+		for (i = 0; i < m; ++i) SA[i] = RA[SA[i+1]];
 	}
 
-	/* STAGE III: induce the result for the original problem */
+	// STAGE III: induce the result for the original problem
 	if (k <= fs) C = SA + n, B = (k <= fs - k) ? C + k : C;
 	else {
 		if ((C = (saint_t*)malloc(k * (1 + (cs == 1)) * sizeof(saint_t))) == NULL) return -2;
 		B = cs == 1? C + k : C;
 	}
-	/* put all LMS characters into their buckets */
+	// put all LMS characters into their buckets
 	getCounts(T, C, n, k, cs);
-	getBuckets(C, B, k, 1);	/* find ends of buckets */
-	for (i = m; i < n; ++i) SA[i] = 0; /* init SA[m..n-1] */
+	getBuckets(C, B, k, 1);	// find ends of buckets
+	for (i = m; i < n; ++i) SA[i] = 0;
 	for (i = m - 1; 0 <= i; --i) {
 		j = SA[i], SA[i] = 0;
 		SA[--B[chr0(j)]] = j;
@@ -219,20 +226,7 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
  */
 int SAIS_MAIN(const uint8_t *T, saint_t *SA, saint_t n, int k)
 {
-	if (T == NULL || SA == NULL || T[n - 1] != '\0' || n <= 0) return -1;
+	if (T == NULL || SA == NULL || n <= 0 || T[n - 1] != '\0') return -1;
 	if (k < 0 || k > 256) k = 256;
-	return SAIS_CORE(T, SA, 0, n, (saint_t)k, 1);
-}
-
-int SAIS_BWT(uint8_t *T, saint_t n, int k)
-{
-	saint_t *SA, i;
-	int ret;
-	if ((SA = (saint_t*)malloc(n * sizeof(saint_t))) == 0) return -1;
-	if ((ret = SAIS_MAIN(T, SA, n, k)) != 0) return ret;
-	for (i = 0; i < n; ++i)
-		if (SA[i]) SA[i] = T[SA[i] - 1]; /* if SA[i]==0, SA[i]=0 */
-	for (i = 0; i < n; ++i) T[i] = SA[i];
-	free(SA);
-	return 0;
+	return sais_core(T, SA, 0, n, (saint_t)k, 1);
 }
