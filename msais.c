@@ -77,11 +77,11 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 }
 
 /** Induced sort; LMS must be put towards the end of each bucket before calling this function */
-static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, saint_t cs)
+static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs, int LMS_only)
 {
 	saint_t *b, i, j;
 	saint_t  c0, c1;
-	/* induce all L-suffixes from LMS (left-to-right) */
+	/* induce all L from LMS (left-to-right) */
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 0);	/* find starts of buckets */
 	if (cs != sizeof(saint_t)) { /* in the first round, 0 is a sentinel and there can be multiple sentinels in T */
@@ -97,20 +97,25 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 			--j;
 			if ((c0 = chr0(j)) != c1) /* then change a bucket */
 				B[c1] = b - SA, b = SA + B[c1 = c0];
-			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; /* NB: non-LMS S-suffixes are negative */
+			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; /* true if j is LML, which is <0 now but will be flipped later */
 		}
-	} /* here, S-type is negative and L-type is positive */
-	/* induce all S-suffixes from L (right-to-left) */
+	} /* here, only LML are positive in SA[] */
+	/* induce S from L (right-to-left) */
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	/* find ends of buckets */
+	if (LMS_only) /* reset negative values except the 0 bucket */
+		for (i = cs != sizeof(saint_t)? B[0] : 1; i < n; ++i)
+			if (SA[i] < 0) SA[i] = 0;
 	for (i = n - 1, b = SA + B[c1 = 0]; i >= 0; --i) {
-		if ((j = SA[i]) > 0) { /* SA[i] is up to date */
+		j = SA[i];
+		if (LMS_only || j <= 0) SA[i] = ~j;
+		if (j > 0) {
 			--j;
 			if ((c0 = chr0(j)) != c1)
 				B[c1] = b - SA, b = SA + B[c1 = c0];
 			if (cs == sizeof(saint_t) || c0 > 0)
-				*--b = j == 0 || chr0(j - 1) > c1? ~j : j;
-		} else SA[i] = ~j; /* flip to positive */
+				*--b = j == 0 || chr0(j - 1) > c1? ~j : j; /* true if j is LMS */
+		}
 	}
 }
 
@@ -147,18 +152,11 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
 		if ((c0 = chr0(i)) < c1 + c) c = 1; /* c1 = chr(i+1); c==1 if in an S run */
 		else if (c) SA[--B[c1]] = i + 1, c = 0;
 	}
-	induceSA(T, SA, C, B, n, k, cs);
+	induceSA(T, SA, C, B, n, k, cs, 1);
 	if (fs < k) free(C);
-	/* pack all the sorted LMS into the first m items of SA 
-	   2*m must be not larger than n (see Nong et al. for the proof) */
-	for (i = 0, m = 0; i < n; ++i) {
-		saint_t p = SA[i];
-		if (p == n - 1) SA[m++] = p;
-		else if (p > 0 && chr(p - 1) > (c0 = chr(p))) {
-			for (j = p + 1; j < n && c0 == (c1 = chr(j)); ++j) {}
-			if (j < n && c0 < c1) SA[m++] = p;
-		}
-	}
+	/* pack all the sorted LMS into the first m items of SA; 2*m <= n */
+	for (i = 0, m = 0; i < n; ++i)
+		if (SA[i] > 0) SA[m++] = SA[i];
 	for (i = m; i < n; ++i) SA[i] = 0;	/* init the name array buffer */
 	/* store the length of all substrings */
 	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1); i >= 0; --i, c1 = c0) {
@@ -204,7 +202,7 @@ int SAIS_CORE(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, i
 		j = SA[i], SA[i] = 0;
 		SA[--B[chr0(j)]] = j;
 	}
-	induceSA(T, SA, C, B, n, k, cs);
+	induceSA(T, SA, C, B, n, k, cs, 0);
 	if (fs < k) free(C);
 	return 0;
 }
