@@ -43,6 +43,20 @@ msais-lite only computes the positions of LMS-suffixes when inducing S-types.
 It generates packed the array of LMS positions without using `T`.
 This reduces random memory access and speeds up construction a little.
 
+## A small benchmark
+
+We constructed generalized suffix arrays for T2T-CHM13 and chr11+chr20 from CHM13.
+Both strands are included.
+The following table shows the results on a single CPU thread.
+For libsais16x64, we use a strategy same as the one used in ropebwt3.
+Benchmark code can be found [here][gsa-bench].
+
+| Algorithm | T2T/linux elapsed | CPU | RAM | chr11+20/mac elapsed | CPU | RAM |
+|:----------|------------------:|----:|----:|---------------------:|----:|----:|
+|msais      | 1211 s | 1209 s | 52.3 G | 35.3 s | 34.4 s | 3.64 G |
+|gSACA-K    | 3356 s | 3349 s | 53.5 G | 46.5 s | 45.7 s | 3.64 G |
+|libsais16x64| 450 s |  449 s | 58.1 G | 12.4 s | 12.2 s | 4.02 G |
+
 ## History of msais-lite
 
 [Ko and Aluru (2005)][ko-2005] defined L-suffix and S-suffix.
@@ -62,16 +76,16 @@ According to [Web Archive][archive], v2.4.1 is the last version of sais-lite, re
 Someone put a copy of this version [in his GitHub repo][filip] and I [forked it][filip-fork] for backup.
 sais-lite is an engineering feat.
 
-In 2011, I needed an algorithm to construct generalized suffix array for my [fermi assembler][fermi].
+In 2011, I needed an algorithm to construct generalized suffix array, so
 I modified the old sais-lite [in bwa][bwa-is] with source code [here][ksa].
-I didn't explain how it works in the [fermi paper][fermi-paper] and I have not touched the source code in 14 years.
+I didn't explain how it works in publications and I had not touched the source code in 14 years.
 During this time, [Louza et al (2017)][gsacak-paper] published gSACA-K.
 It is a popular library for constructing generalized suffix arrays albeit slower than my sais-lite adaptation.
 
 Fast forward in 2025, when I was reading a paper using LMS-substrings,
-I realized I have completely forgotten how SA-IS works.
+I realized I had completely forgotten how SA-IS works.
 I then reread previous papers, came back to my old code, polished it and made it available in this repo.
-msais-lite is not the fastest but it is possibly the smallest with good enough performance.
+msais-lite is not the fastest but it is still a small contribution that may be worth documenting.
 
 [gsa]: https://en.wikipedia.org/wiki/Generalized_suffix_array
 [yuta]: https://github.com/y-256
@@ -87,6 +101,5 @@ msais-lite is not the fastest but it is possibly the smallest with good enough p
 [archive]: https://web.archive.org/web/20151023010453/https://sites.google.com/site/yuta256/
 [filip]: https://github.com/fpopic/bioinf/tree/master/install
 [filip-fork]: https://github.com/lh3/bioinf-sais-lite/tree/master/install
-[fermi]: https://github.com/lh3/fermi
 [ksa]: https://github.com/lh3/fermi/blob/master/ksa.c
-[fermi-paper]: https://academic.oup.com/bioinformatics/article/28/14/1838/218887
+[gsa-bench]: https://github.com/lh3/mssa-bench
