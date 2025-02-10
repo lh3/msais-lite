@@ -56,7 +56,7 @@ The authors called their algorithm SA-IS and provided a succinct implementation 
 optimized the original SA-IS implementation in 2008 with improvements shown above
 and released it as the *sais-lite* library.
 I copied this 2008 version [to bwa][bwa-is].
-[Timoshevskaya and Feng (2014)][sais-opt] called it *bwa-is*, but this is Yuta's work, not mine.
+[Timoshevskaya and Feng (2014)][sais-opt] called the bwa copy as *bwa-is*, but this is Yuta's work, not mine.
 Yuta kept improving sais-lite but then the original website is gone.
 According to [Web Archive][archive], v2.4.1 is the last version of sais-lite, released on August 7, 2010.
 Someone put a copy of this version [in his GitHub repo][filip] and I [forked it][filip-fork] for backup.
