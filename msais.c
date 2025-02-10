@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008  Yuta Mori
+ * Copyright (c) 2008  Yuta Mori <yuta.256@gmail.com>
  *               2011- Attractive Chaos <attractor@live.co.uk>
  *
  * Permission is hereby granted, free of charge, to any person
@@ -24,13 +24,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/* This is a library for constructing the suffix array for a string containing
- * multiple sentinels with sentinels all represented by 0. The last symbol in
- * the string must be a sentinel. The library is modified from an early version
- * of Yuta Mori's SAIS library, but is slower than the lastest SAIS by about
- * 30%, partly due to the recent optimization Yuta has applied and partly due
- * to the extra comparisons between sentinels. This is not the first effort in
- * supporting multi-sentinel strings, but is probably the easiest to use. */
+/* This library constructs the generalized suffix array for a string set. It is
+ * modified from an early version of sais-lite written by Yuta Mori in 2008. */
 
 #include <stdlib.h>
 #include "msais.h"
@@ -69,7 +64,7 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 {
 	saint_t i, sum = 0;
 	if (end) for (i = 0; i < k; ++i) sum += C[i], B[i] = sum;
-	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i]; // NB: C[] and B[] may point to the same address
+	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i]; // NB: don't change because C and B may point to the same address
 }
 
 /**
@@ -88,17 +83,11 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 {
 	saint_t *b, i, j;
 	saint_t  c0, c1;
+
 	// induce L from LMS (left-to-right)
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 0);	// find starts of buckets
-	if (cs != sizeof(saint_t)) { // in the first round, 0 is a sentinel and there can be multiple sentinels in T
-		b = SA, c1 = 0;
-	} else { // in the following rounds, 0 is a normal symbol, so the initial condition is different from above
-		j = n - 1;
-		b = SA + B[c1 = chr0(j)];
-		*b++ = j > 0 && chr0(j - 1) < c1? ~j : j;
-	}
-	for (i = 0; i < n; ++i) {
+	for (i = 0, b = SA, c1 = 0; i < n; ++i) {
 		j = SA[i], SA[i] = ~j;
 		if (j > 0) { // L or LMS
 			--j;
@@ -106,12 +95,13 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 				B[c1] = b - SA, b = SA + B[c1 = c0];
 			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; // true if j is LML, which is <0 now but will be flipped later
 		}
-	} // here, only LML are positive in SA[]
-	// induce S from L (right-to-left)
+	} // at the end of the loop, only LML are positive in SA[]
+
+	// induce S from LML (right-to-left)
 	if (C == B) getCounts(T, C, n, k, cs);
-	getBuckets(C, B, k, 1);	/* find ends of buckets */
-	if (LMS_only) /* reset negative values except the 0 bucket */
-		for (i = cs != sizeof(saint_t)? B[0] : 1; i < n; ++i)
+	getBuckets(C, B, k, 1);	// find ends of buckets
+	if (LMS_only) // set negative values to 0 except the 0/sentinel bucket
+		for (i = B[0]; i < n; ++i)
 			if (SA[i] < 0) SA[i] = 0;
 	for (i = n - 1, b = SA + B[c1 = 0]; i >= 0; --i) {
 		j = SA[i];
@@ -120,7 +110,7 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 			--j;
 			if ((c0 = chr0(j)) != c1)
 				B[c1] = b - SA, b = SA + B[c1 = c0];
-			if (cs == sizeof(saint_t) || c0 > 0)
+			if (c0 > 0) // don't touch the 0 bucket
 				*--b = j == 0 || chr0(j - 1) > c1? ~j : j; // true if j is LMS
 		}
 	}
