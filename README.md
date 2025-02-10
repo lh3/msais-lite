@@ -10,7 +10,7 @@ make
 
 msais-lite is a C library for constructing the [generalized suffix array][gsa] of a string set.
 It is adapted from an early version of sais-lite written by [Yuta Mori][yuta] in 2008.
-The library only has one API:
+The library only has [one API](msais.h):
 ```c
 int ksa_sa32(const uint8_t *T, int32_t *SA, int32_t n, int k);
 ```
@@ -48,7 +48,7 @@ This reduces random memory access and speeds up construction a little.
 We constructed generalized suffix arrays for T2T-CHM13 and chr11+chr20 from CHM13.
 Both strands are included.
 The following table shows the results on a single CPU thread.
-For libsais16x64, we use a strategy same as the one used in ropebwt3.
+For [libsais16x64][libsais], we use a strategy same as the one used [in ropebwt3][rb3-paper].
 Benchmark code can be found [here][gsa-bench].
 
 | Algorithm | T2T/linux elapsed | CPU | RAM | chr11+20/mac elapsed | CPU | RAM |
@@ -103,3 +103,4 @@ msais-lite is not the fastest but it is still a small contribution that may be w
 [filip-fork]: https://github.com/lh3/bioinf-sais-lite/tree/master/install
 [ksa]: https://github.com/lh3/fermi/blob/master/ksa.c
 [gsa-bench]: https://github.com/lh3/mssa-bench
+[rb3-paper]: https://academic.oup.com/bioinformatics/article/40/12/btae717/7912338
