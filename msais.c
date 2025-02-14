@@ -67,24 +67,21 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i]; // NB: don't change because C and B may point to the same address
 }
 
-/**
- * Induced sort
- *
- * @param T         string
- * @param SA        suffix array with LMS stored at the ends of buckets
- * @param C         array for counting (no need to compute)
- * @param B         array for bucket offsets (no need to compute)
- * @param n         length of T
- * @param k         size of alphabet
- * @param cs        bytes per symbol; typically 1 for the first iteration
- * @param LMS_only  if false, populate all SA values; otherwise, only LMS positions are positive in SA
- */
-static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs, int LMS_only)
+static void placeLMS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs)
 {
-	saint_t *b, i, j;
-	saint_t  c0, c1;
+	saint_t i, c, c0, c1;
+	getCounts(T, C, n, k, cs);
+	getBuckets(C, B, k, 1);	// find ends of buckets
+	for (i = 0; i < n; ++i) SA[i] = 0;
+	for (i = n - 2, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
+		if ((c0 = chr0(i)) < c1 + c) c = 1; // c1 = chr(i+1); c==1 if in an S run
+		else if (c) SA[--B[c1]] = i + 1, c = 0;
+	}
+}
 
-	// induce L from LMS (left-to-right)
+static void induceLML(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs)
+{
+	saint_t *b, i, j, c0, c1;
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 0);	// find starts of buckets
 	for (i = 0, b = SA, c1 = 0; i < n; ++i) {
@@ -96,8 +93,11 @@ static void induceSA(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 			*b++ = j > 0 && chr0(j - 1) < c1? ~j : j; // true if j is LML, which is <0 now but will be flipped later
 		}
 	} // at the end of the loop, only LML are positive in SA[]
+}
 
-	// induce S from LML (right-to-left)
+static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs, int LMS_only)
+{
+	saint_t *b, i, j, c0, c1;
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	// find ends of buckets
 	if (LMS_only) // set negative values to 0 except the 0/sentinel bucket
@@ -141,15 +141,9 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 		if ((C = (saint_t*)malloc(k * (1 + (cs == 1)) * sizeof(saint_t))) == NULL) return -2;
 		B = cs == 1? C + k : C;
 	}
-	getCounts(T, C, n, k, cs);
-	getBuckets(C, B, k, 1);	// find ends of buckets
-	for (i = 0; i < n; ++i) SA[i] = 0;
-	// find LMS and keep their positions in the buckets
-	for (i = n - 2, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
-		if ((c0 = chr0(i)) < c1 + c) c = 1; // c1 = chr(i+1); c==1 if in an S run
-		else if (c) SA[--B[c1]] = i + 1, c = 0;
-	}
-	induceSA(T, SA, C, B, n, k, cs, 1);
+	placeLMS(T, SA, C, B, n, k, cs);
+	induceLML(T, SA, C, B, n, k, cs);
+	induceS(T, SA, C, B, n, k, cs, 1);
 	if (fs < k) free(C);
 	// pack all the sorted LMS into the first m items of SA; 2*m <= n
 	for (i = 0, m = 0; i < n; ++i)
@@ -199,7 +193,8 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 		j = SA[i], SA[i] = 0;
 		SA[--B[chr0(j)]] = j;
 	}
-	induceSA(T, SA, C, B, n, k, cs, 0);
+	induceLML(T, SA, C, B, n, k, cs);
+	induceS(T, SA, C, B, n, k, cs, 0);
 	if (fs < k) free(C);
 	return 0;
 }
