@@ -40,8 +40,7 @@ typedef int32_t saint_t;
 #define SAIS_MAIN ksa_sa32
 #endif
 
-// T is of type "const uint8_t*". If T[i] is a sentinel, chr(i) takes a negative value
-#define chr(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : (T[i]? (saint_t)T[i] : i - SAINT_MAX))
+// T is of type "const uint8_t*"
 #define chr0(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : T[i])
 
 /** Count the occurrences of each symbol */
@@ -148,8 +147,8 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 	// pack all the sorted LMS into the first m items of SA; 2*m <= n
 	for (i = 0, m = 0; i < n; ++i)
 		if (SA[i] > 0) SA[m++] = SA[i];
-	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
 	// store the length of all substrings
+	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
 	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1); i >= 0; --i, c1 = c0) {
 		if ((c0 = chr0(i)) < c1 + c) c = 1; // c1 = chr(i+1)
 		else if (c) SA[m + ((i + 1) >> 1)] = j - i - 1, j = i + 1, c = 0;
@@ -158,7 +157,10 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 	for (i = 0, name = 0, q = n, qlen = 0; i < m; ++i) {
 		saint_t p = SA[i], plen = SA[m + (p >> 1)], diff = 1;
 		if (plen == qlen) {
-			for (j = 0; j < plen && chr(p + j) == chr(q + j); j++) {}
+			for (j = 0; j < plen; j++) {
+				c0 = chr0(p + j), c1 = chr0(q + j);
+				if (c0 != c1 || c0 == 0) break;
+			}
 			if (j == plen) diff = 0;
 		}
 		if (diff) ++name, q = p, qlen = plen;
@@ -172,8 +174,8 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 			if (SA[i] != 0) RA[j--] = SA[i];
 		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m always stands
 		if (sais_core((uint8_t*)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
-		for (i = n - 2, j = m - 1, c = 1, c1 = chr(n - 1); 0 <= i; --i, c1 = c0) {
-			if ((c0 = chr(i)) < c1 + c) c = 1;
+		for (i = n - 2, j = m - 1, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
+			if ((c0 = chr0(i)) < c1 + c) c = 1;
 			else if (c) RA[j--] = i + 1, c = 0;
 		}
 		for (i = 0; i < m; ++i) SA[i] = RA[SA[i+1]];
