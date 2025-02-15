@@ -41,7 +41,7 @@ typedef int32_t saint_t;
 // T is of type "const uint8_t*"
 #define chr0(i) (cs == sizeof(saint_t) ? ((const saint_t *)T)[i] : T[i])
 
-/** Count the occurrences of each symbol */
+// count the occurrences of each symbol
 static void getCounts(const uint8_t *T, saint_t *C, saint_t n, saint_t k, int cs)
 {
 	saint_t i;
@@ -49,14 +49,7 @@ static void getCounts(const uint8_t *T, saint_t *C, saint_t n, saint_t k, int cs
 	for (i = 0; i < n; ++i) ++C[chr0(i)];
 }
 
-/**
- * Find the start or end of each bucket
- *
- * @param C    occurrences computed by getCounts()
- * @param B    start/end of each bucket (out)
- * @param k    size of alphabet
- * @param end  compute the end of bucket if true; otherwise compute the end
- */
+// find the start or the end of each bucket, depending on _end_
 static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t end)
 {
 	saint_t i, sum = 0;
@@ -64,6 +57,7 @@ static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t e
 	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i]; // NB: don't change because C and B may point to the same address
 }
 
+// place LMS at the end of each bucket
 static void placeLMS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs)
 {
 	saint_t i, c, c0, c1;
@@ -76,6 +70,7 @@ static void placeLMS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sain
 	}
 }
 
+// induce LML from LMS; LMS needs to be correctly placed
 static void induceLML(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs)
 {
 	saint_t *b, i, j, c0, c1;
@@ -92,17 +87,19 @@ static void induceLML(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, sai
 	} // at the end of the loop, only LML are positive in SA[]
 }
 
-static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs, int LMS_only)
+// induce all entries if _all_ is true; otherwise, induce LMS only and set the rest to 0 or negative
+static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint_t n, saint_t k, int cs, int all)
 {
 	saint_t *b, i, j, c0, c1;
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	// find ends of buckets
-	if (LMS_only) // set negative values to 0 except the 0/sentinel bucket
+	if (!all) { // set non-LML entries to 0 if we want to induce LMS only
 		for (i = B[0]; i < n; ++i)
 			if (SA[i] < 0) SA[i] = 0;
+	}
 	for (i = n - 1, b = SA + B[c1 = 0]; i >= 0; --i) {
 		j = SA[i];
-		if (LMS_only || j <= 0) SA[i] = ~j;
+		if (!all || j <= 0) SA[i] = ~j;
 		if (j > 0) {
 			--j;
 			if ((c0 = chr0(j)) != c1)
@@ -115,32 +112,31 @@ static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint
 
 static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, saint_t k, int cs)
 {
-	saint_t i, j, name, q, qsig, c, c0, c1, x = k, nb = 0, max_len, n0;
-	// calculate ceil(log2(k))
-	while (x >>= 1) ++nb;
-	if ((k & (k - 1)) != 0) ++nb;
-	max_len = (sizeof(saint_t) * 8 - 2) / nb;
-	if (max_len < 3) max_len = 0;
-	// store the length of all substrings
+	saint_t i, j, name, q, qsig, c, c0, c1, x = k, nb = 0, max_len, n0, shift = sizeof(saint_t) * 8 - 1;
+	// calculate max length
+	while (x >>= 1) ++nb; // nb = floor(log2(k))
+	if ((k & (k - 1)) != 0) ++nb; // nb = ceil(log2(k))
+	max_len = shift / nb;
+	// store the length or the actual content of all LMS-substrings
 	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
 	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1), x = 0, n0 = 0; i >= 0; --i) {
 		c0 = chr0(i);
 		if (c0 < c1 + c) c = 1;
 		else if (c) {
 			saint_t len = j - i - 1;
-			SA[m + ((i + 1) >> 1)] = len > max_len || n0 > 0? len << 1 : (x << 1 | 1);
+			SA[m + ((i + 1) >> 1)] = len > max_len || n0 > 0? len : (saint_t)1<<shift | x;
 			x = 0, n0 = 0, j = i + 1, c = 0;
 		}
-		x = x << nb | c0; // the LMS-substring
-		n0 += (c0 == 0); // the number of sentinels in the LMS
+		x = x << nb | c0; // substring since the last LMS
+		n0 += (c0 == 0); // the number of sentinels since the last LMS
 		c1 = c0;
 	}
-	// find the lexicographic names of all substrings
+	// find the lexicographic names of all LMS-substrings
 	for (i = 0, name = 0, q = n, qsig = 0; i < m; ++i) {
 		saint_t p = SA[i], psig = SA[m + (p >> 1)], diff = 1;
 		if (psig == qsig) {
-			if ((psig & 1) == 0) { // then psig>>1 is the length of the LMS-substring
-				saint_t len = psig >> 1;
+			if (psig >> shift == 0) { // then psig is the length of the LMS-substring
+				saint_t len = psig;
 				for (j = 0; j < len; j++) {
 					c0 = chr0(p + j), c1 = chr0(q + j);
 					if (c0 != c1 || c0 == 0) break;
@@ -170,7 +166,7 @@ static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, sain
 static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
 {
 	saint_t *C, *B;
-	saint_t  i, j, c, c0, c1, m, name;
+	saint_t  i, j, c, c0, c1, m, max_name;
 
 	// STAGE I: reduce the problem by at least 1/2 sort all the S-substrings
 	if (k <= fs) C = SA + n, B = (k <= fs - k) ? C + k : C;
@@ -180,19 +176,19 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 	}
 	placeLMS(T, SA, C, B, n, k, cs);
 	induceLML(T, SA, C, B, n, k, cs);
-	induceS(T, SA, C, B, n, k, cs, 1);
+	induceS(T, SA, C, B, n, k, cs, 0);
 	if (fs < k) free(C);
 	for (i = 0, m = 0; i < n; ++i) // gather all LMS
 		if (SA[i] > 0) SA[m++] = SA[i];
-	name = nameLMS(T, SA, n, m, k, cs);
+	max_name = nameLMS(T, SA, n, m, k, cs);
 
 	// STAGE II: solve the reduced problem; recurse if names are not yet unique
-	if (name < m) {
+	if (max_name < m) {
 		saint_t *RA = SA + n + fs - m - 1; // RA points to the last m+1 elements in SA
 		for (i = n - 1, j = m - 1; i >= m; --i)
 			if (SA[i] != 0) RA[j--] = SA[i];
 		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m
-		if (sais_core((uint8_t*)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
+		if (sais_core((uint8_t*)RA, SA, fs + n - m * 2 - 2, m + 1, max_name + 1, sizeof(saint_t)) != 0) return -2;
 		for (i = n - 2, j = m - 1, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
 			if ((c0 = chr0(i)) < c1 + c) c = 1;
 			else if (c) RA[j--] = i + 1, c = 0;
@@ -215,7 +211,7 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 		SA[--B[chr0(j)]] = j;
 	}
 	induceLML(T, SA, C, B, n, k, cs);
-	induceS(T, SA, C, B, n, k, cs, 0);
+	induceS(T, SA, C, B, n, k, cs, 1);
 	if (fs < k) free(C);
 	return 0;
 }
