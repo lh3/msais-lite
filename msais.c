@@ -49,11 +49,11 @@ static void getCounts(const uint8_t *T, saint_t *C, saint_t n, saint_t k, int cs
 	for (i = 0; i < n; ++i) ++C[chr0(i)];
 }
 
-// find the start or the end of each bucket, depending on _end_
-static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, saint_t end)
+// find the start or the end of each bucket, depending on _is_end_
+static inline void getBuckets(const saint_t *C, saint_t *B, saint_t k, int is_end)
 {
 	saint_t i, sum = 0;
-	if (end) for (i = 0; i < k; ++i) sum += C[i], B[i] = sum;
+	if (is_end) for (i = 0; i < k; ++i) sum += C[i], B[i] = sum;
 	else for (i = 0; i < k; ++i) sum += C[i], B[i] = sum - C[i]; // NB: don't change because C and B may point to the same address
 }
 
@@ -118,7 +118,7 @@ static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, sain
 	if ((k & (k - 1)) != 0) ++nb; // nb = ceil(log2(k))
 	max_len = shift / nb;
 	// store the length or the actual content of all LMS-substrings
-	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
+	for (i = m; i < n; ++i) SA[i] = 0;
 	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1), x = 0, n0 = 0; i >= 0; --i) {
 		c0 = chr0(i);
 		if (c0 < c1 + c) c = 1;
@@ -145,7 +145,7 @@ static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, sain
 			} else diff = 0;
 		}
 		if (diff) ++name, q = p, qsig = psig;
-		SA[m + (p >> 1)] = name;
+		SA[m + (p >> 1)] = name; // this works because a) m <= n/2 and b) an LMS-substring is at least 2 in length
 	}
 	return name;
 }
