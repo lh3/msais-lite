@@ -32,11 +32,9 @@
 
 #if defined(_KSA64) || defined(MSAIS64)
 typedef int64_t saint_t;
-#define SAINT_MAX INT64_MAX
 #define SAIS_MAIN ksa_sa64
 #else
 typedef int32_t saint_t;
-#define SAINT_MAX INT32_MAX
 #define SAIS_MAIN ksa_sa32
 #endif
 
