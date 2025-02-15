@@ -115,38 +115,9 @@ static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint
 	}
 }
 
-/**
- * Recursively construct the suffix array for a string containing multiple
- * sentinels. NULL is taken as the sentinel.
- *
- * @param T   NULL terminated input string (there can be multiple NULLs)
- * @param SA  output suffix array
- * @param fs  working space available in SA (typically 0 when first called)
- * @param n   length of T, including the trailing NULL
- * @param k   size of the alphabet (typically 256 when first called)
- * @param cs  bytes per symbol; typically 1 for the first iteration
- *
- * @return    0 upon success
- */
-static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
+static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, int cs)
 {
-	saint_t *C, *B;
-	saint_t  i, j, c, m, q, qlen, name;
-	saint_t  c0, c1;
-
-	// STAGE I: reduce the problem by at least 1/2 sort all the S-substrings
-	if (k <= fs) C = SA + n, B = (k <= fs - k) ? C + k : C;
-	else {
-		if ((C = (saint_t*)malloc(k * (1 + (cs == 1)) * sizeof(saint_t))) == NULL) return -2;
-		B = cs == 1? C + k : C;
-	}
-	placeLMS(T, SA, C, B, n, k, cs);
-	induceLML(T, SA, C, B, n, k, cs);
-	induceS(T, SA, C, B, n, k, cs, 1);
-	if (fs < k) free(C);
-	// pack all the sorted LMS into the first m items of SA; 2*m <= n
-	for (i = 0, m = 0; i < n; ++i)
-		if (SA[i] > 0) SA[m++] = SA[i];
+	saint_t i, j, name, q, qlen, c, c0, c1;
 	// store the length of all substrings
 	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
 	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1); i >= 0; --i, c1 = c0) {
@@ -166,13 +137,48 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 		if (diff) ++name, q = p, qlen = plen;
 		SA[m + (p >> 1)] = name;
 	}
+	return name;
+}
+
+/**
+ * Recursively construct the suffix array for a string containing multiple
+ * sentinels. NULL is taken as the sentinel.
+ *
+ * @param T   NULL terminated input string (there can be multiple NULLs)
+ * @param SA  output suffix array
+ * @param fs  working space available in SA (typically 0 when first called)
+ * @param n   length of T, including the trailing NULL
+ * @param k   size of the alphabet (typically 256 when first called)
+ * @param cs  bytes per symbol; typically 1 for the first iteration
+ *
+ * @return    0 upon success
+ */
+static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint_t k, int cs)
+{
+	saint_t *C, *B;
+	saint_t  i, j, c, c0, c1, m, name;
+
+	// STAGE I: reduce the problem by at least 1/2 sort all the S-substrings
+	if (k <= fs) C = SA + n, B = (k <= fs - k) ? C + k : C;
+	else {
+		if ((C = (saint_t*)malloc(k * (1 + (cs == 1)) * sizeof(saint_t))) == NULL) return -2;
+		B = cs == 1? C + k : C;
+	}
+	placeLMS(T, SA, C, B, n, k, cs);
+	induceLML(T, SA, C, B, n, k, cs);
+	induceS(T, SA, C, B, n, k, cs, 1);
+	if (fs < k) free(C);
+	// pack all the sorted LMS into the first m items of SA; 2*m <= n
+	for (i = 0, m = 0; i < n; ++i)
+		if (SA[i] > 0) SA[m++] = SA[i];
+	name = nameLMS(T, SA, n, m, cs);
 
 	// STAGE II: solve the reduced problem; recurse if names are not yet unique
 	if (name < m) {
-		saint_t *RA = SA + n + fs - m - 1;
-		for (i = n - 1, j = m - 1; m <= i; --i)
+		saint_t *RA = SA + n + fs - m - 1; // RA points to the last m+1 elements in SA
+		for (i = n - 1, j = m - 1; i >= m; --i)
 			if (SA[i] != 0) RA[j--] = SA[i];
-		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m always stands
+		RA[m] = 0; // add a sentinel; in the resulting SA, SA[0]==m
 		if (sais_core((uint8_t*)RA, SA, fs + n - m * 2 - 2, m + 1, name + 1, sizeof(saint_t)) != 0) return -2;
 		for (i = n - 2, j = m - 1, c = 1, c1 = chr0(n - 1); 0 <= i; --i, c1 = c0) {
 			if ((c0 = chr0(i)) < c1 + c) c = 1;
@@ -191,7 +197,7 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 	getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	// find ends of buckets
 	for (i = m; i < n; ++i) SA[i] = 0;
-	for (i = m - 1; 0 <= i; --i) {
+	for (i = m - 1; i >= 0; --i) {
 		j = SA[i], SA[i] = 0;
 		SA[--B[chr0(j)]] = j;
 	}
