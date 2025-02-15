@@ -113,26 +113,42 @@ static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint
 	}
 }
 
-static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, int cs)
+static saint_t nameLMS(const uint8_t *T, saint_t *SA, saint_t n, saint_t m, saint_t k, int cs)
 {
-	saint_t i, j, name, q, qlen, c, c0, c1;
+	saint_t i, j, name, q, qsig, c, c0, c1, x = k, nb = 0, max_len, n0;
+	// calculate ceil(log2(k))
+	while (x >>= 1) ++nb;
+	if ((k & (k - 1)) != 0) ++nb;
+	max_len = (sizeof(saint_t) * 8 - 2) / nb;
+	if (max_len < 3) max_len = 0;
 	// store the length of all substrings
 	for (i = m; i < n; ++i) SA[i] = 0;	// init the name array buffer
-	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1); i >= 0; --i, c1 = c0) {
-		if ((c0 = chr0(i)) < c1 + c) c = 1; // c1 = chr(i+1)
-		else if (c) SA[m + ((i + 1) >> 1)] = j - i - 1, j = i + 1, c = 0;
+	for (i = n - 2, j = n, c = 1, c1 = chr0(n - 1), x = 0, n0 = 0; i >= 0; --i) {
+		c0 = chr0(i);
+		if (c0 < c1 + c) c = 1;
+		else if (c) {
+			saint_t len = j - i - 1;
+			SA[m + ((i + 1) >> 1)] = len > max_len || n0 > 0? len << 1 : (x << 1 | 1);
+			x = 0, n0 = 0, j = i + 1, c = 0;
+		}
+		x = x << nb | c0; // the LMS-substring
+		n0 += (c0 == 0); // the number of sentinels in the LMS
+		c1 = c0;
 	}
 	// find the lexicographic names of all substrings
-	for (i = 0, name = 0, q = n, qlen = 0; i < m; ++i) {
-		saint_t p = SA[i], plen = SA[m + (p >> 1)], diff = 1;
-		if (plen == qlen) {
-			for (j = 0; j < plen; j++) {
-				c0 = chr0(p + j), c1 = chr0(q + j);
-				if (c0 != c1 || c0 == 0) break;
-			}
-			if (j == plen) diff = 0;
+	for (i = 0, name = 0, q = n, qsig = 0; i < m; ++i) {
+		saint_t p = SA[i], psig = SA[m + (p >> 1)], diff = 1;
+		if (psig == qsig) {
+			if ((psig & 1) == 0) { // then psig>>1 is the length of the LMS-substring
+				saint_t len = psig >> 1;
+				for (j = 0; j < len; j++) {
+					c0 = chr0(p + j), c1 = chr0(q + j);
+					if (c0 != c1 || c0 == 0) break;
+				}
+				if (j == len) diff = 0;
+			} else diff = 0;
 		}
-		if (diff) ++name, q = p, qlen = plen;
+		if (diff) ++name, q = p, qsig = psig;
 		SA[m + (p >> 1)] = name;
 	}
 	return name;
@@ -166,10 +182,9 @@ static int sais_core(const uint8_t *T, saint_t *SA, saint_t fs, saint_t n, saint
 	induceLML(T, SA, C, B, n, k, cs);
 	induceS(T, SA, C, B, n, k, cs, 1);
 	if (fs < k) free(C);
-	// pack all the sorted LMS into the first m items of SA; 2*m <= n
-	for (i = 0, m = 0; i < n; ++i)
+	for (i = 0, m = 0; i < n; ++i) // gather all LMS
 		if (SA[i] > 0) SA[m++] = SA[i];
-	name = nameLMS(T, SA, n, m, cs);
+	name = nameLMS(T, SA, n, m, k, cs);
 
 	// STAGE II: solve the reduced problem; recurse if names are not yet unique
 	if (name < m) {
