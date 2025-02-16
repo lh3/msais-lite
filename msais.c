@@ -93,10 +93,9 @@ static void induceS(const uint8_t *T, saint_t *SA, saint_t *C, saint_t *B, saint
 	saint_t *b, i, j, c0, c1;
 	if (C == B) getCounts(T, C, n, k, cs);
 	getBuckets(C, B, k, 1);	// find ends of buckets
-	if (!all) { // set non-LML entries to 0 if we want to induce LMS only
+	if (!all) // set non-LML entries to 0 if we want to induce LMS only
 		for (i = B[0]; i < n; ++i)
-			if (SA[i] < 0) SA[i] = 0;
-	}
+			SA[i] = SA[i] >= 0? SA[i] : 0;
 	for (i = n - 1, b = SA + B[c1 = 0]; i >= 0; --i) {
 		j = SA[i];
 		if (!all || j <= 0) SA[i] = ~j;
